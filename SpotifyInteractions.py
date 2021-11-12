@@ -5,13 +5,17 @@ import mySQLHelper
 from spotipy.oauth2 import SpotifyOAuth
 from collections import Counter
 import random
+import os
+from dotenv import load_dotenv
 
 
 # A callback URL is needed here for initial OAuth, I used a local flask site to get it going
-def log_in_to_spotify(SPOT_ID,SPOT_SECRET):
+def log_in_to_spotify(SPOT_ID,SPOT_SECRET):    
+    load_dotenv()
+    callback = os.getenv('SPOT_CALLBACK')
     access_token = ""
     scope = "user-library-read playlist-read-collaborative playlist-modify-public playlist-read-private playlist-modify-private user-read-email user-read-private"        
-    sp_oauth = SpotifyOAuth(client_id=SPOT_ID,client_secret=SPOT_SECRET,redirect_uri='http://127.0.0.1:5000/spotify/callback',scope=scope)
+    sp_oauth = SpotifyOAuth(client_id=SPOT_ID,client_secret=SPOT_SECRET,redirect_uri=callback,scope=scope)
     token_info = sp_oauth.get_cached_token()
 
     if token_info:
