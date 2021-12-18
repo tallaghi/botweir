@@ -55,7 +55,6 @@ def get_most_popular_song_on_album(sp,albumId):
     print(f"{mostPopularTrackId} {mostPopularNum}")
     return mostPopularTrackId
 
-
 def parse_ids_from_message(message,sp):
     urls = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', message)
     t_ids = []
@@ -74,6 +73,31 @@ def parse_ids_from_message(message,sp):
             t_ids.append(t_id)
     return t_ids
 
+def parse_ids_from_message_uncut(message,sp):
+    urls = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', message)
+    t_ids = []
+    for url in urls:
+        if "https://open.spotify.com/track/" in url:
+            t_id = url.replace("https://open.spotify.com/track/","")
+            if len(t_id) > 22:
+                t_id = t_id[0:t_id.index("?")]
+            t_ids.append(t_id)
+        elif "https://open.spotify.com/album/" in url:
+            a_id = url.replace("https://open.spotify.com/album/","")
+            if len(a_id) > 22:
+                a_id = a_id[0:a_id.index("?")]
+            #t_id = sp.album_tracks(t_id,limit=1,offset=0)["items"][0]["id"]
+            t_id = get_tracks_from_album(sp,a_id)
+            t_ids.extend(t_id)
+        # elif "https://open.spotify.com/playlist/" in url:
+        #     p_id = url.replace("https://open.spotify.com/playlist/","")
+        #     if len(p_id) > 22:
+        #         p_id = p_id[0:p_id.index("?")]
+        #     #t_id = sp.album_tracks(t_id,limit=1,offset=0)["items"][0]["id"]
+        #     t_id = get_tracks_from_playlist(sp,p_id)
+        #     t_ids.extend(t_id)
+    return t_ids
+
 def get_channel_playlist(channel_name):
     playlist_id = mySQLHelper.get_playlist_by_channel(channel_name)
     if playlist_id == "":
@@ -82,6 +106,7 @@ def get_channel_playlist(channel_name):
 
 def add_track_ids_to_playlist(sp, t_ids, channel_name):
     playlist_id = mySQLHelper.get_playlist_by_channel(channel_name) 
+    print(playlist_id)
     if playlist_id == "":
         playlist_id = create_playlist(sp,channel_name)
         mySQLHelper.insert_channel_playlist(channel_name, playlist_id)        
@@ -98,6 +123,15 @@ def add_tracks_to_playlist(SPOT_ID,SPOT_SECRET,message,channel_name):
     t_ids = parse_ids_from_message(str(message),sp)
     response = add_track_ids_to_playlist(sp, t_ids, channel_name)
     add_track_ids_to_playlist(sp, t_ids, "master-playlist")
+    return response
+
+
+def add_tracks_to_playlist_uncut(SPOT_ID,SPOT_SECRET,message):    
+    sp = log_in_to_spotify(SPOT_ID,SPOT_SECRET)
+    channel_name = "master-playlist-uncut"
+    
+    t_ids = parse_ids_from_message_uncut(str(message),sp)
+    response = add_track_ids_to_playlist(sp, t_ids, channel_name)
     return response
 
 def recommend_based_on_playlist(SPOT_ID,SPOT_SECRET,channel_name):
@@ -179,4 +213,38 @@ def get_tracks_from_playlist(sp, playlist_id):
             for item in tracks["items"]:
                 track_list.append(item["track"]["id"])
 
+    return track_list
+
+# def get_tracks_from_album(sp, album_id):
+#     tracks_first_call = sp.album_tracks(album_id, fields='total,limit,next,items(track(id))')
+#     track_list = []
+#     for item in tracks_first_call["items"]:
+#         track_list.append(item["track"]["id"])
+
+#     if tracks_first_call["total"] > tracks_first_call["limit"]:
+#         tracks_left = tracks_first_call["total"] - tracks_first_call["limit"]        
+#         calls_left = math.ceil(tracks_left / tracks_first_call["limit"])            
+#         for x in range(calls_left):
+#             offset = ((x+1)*100)
+#             tracks = sp.album_tracks(album_id, fields='total,limit,next,items(track(id))',offset=offset)
+#             for item in tracks["items"]:
+#                 track_list.append(item["track"]["id"])
+    
+#     return track_list
+    
+def get_tracks_from_album(sp, album_id):
+    tracks_first_call = sp.album_tracks(album_id)
+    track_list = []
+    for item in tracks_first_call["items"]:
+        track_list.append(item["id"])
+
+    if tracks_first_call["total"] > tracks_first_call["limit"]:
+        tracks_left = tracks_first_call["total"] - tracks_first_call["limit"]        
+        calls_left = math.ceil(tracks_left / tracks_first_call["limit"])            
+        for x in range(calls_left):
+            offset = ((x+1)*100)
+            tracks = sp.album_tracks(album_id,offset=offset)
+            for item in tracks["items"]:
+                track_list.append(item["id"])
+    
     return track_list
